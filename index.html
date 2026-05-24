@@ -1,216 +1,1040 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meu Bloco de Notas</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SynthCode Studio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                colors: {
+                    bg: '#0a0a0a',
+                    surface: '#131316',
+                    card: '#1a1a20',
+                    bdr: '#2a2a32',
+                    accent: '#FF6B35',
+                    'accent-l': '#FF8C5A',
+                    'accent-d': '#CC5529',
+                    fg: '#f0ede8',
+                    muted: '#77778a',
+                },
+                fontFamily: {
+                    display: ['Space Grotesk', 'sans-serif'],
+                    body: ['DM Sans', 'sans-serif'],
+                    mono: ['ui-monospace','Cascadia Code','Source Code Pro','Menlo','monospace'],
+                }
+            }
+        }
+    }
+    </script>
     <style>
-        :root {
-            --primary: #2563eb;
-            --bg: #f8fafc;
-            --text: #1e293b;
-            --white: #ffffff;
-            --danger: #ef4444;
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        html, body { height: 100%; overflow: hidden; background: #0a0a0a; color: #f0ede8; font-family: 'DM Sans', sans-serif; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #2a2a32; border-radius: 4px; }
+
+        /* Orbes de fundo animados */
+        .bg-orb {
+            position: fixed; border-radius: 50%; filter: blur(80px); opacity: 0.08; pointer-events: none; z-index: 0;
+            animation: orbFloat 12s ease-in-out infinite alternate;
+        }
+        .bg-orb.orb1 { width: 300px; height: 300px; background: #FF6B35; top: -80px; left: -60px; }
+        .bg-orb.orb2 { width: 250px; height: 250px; background: #FF6B35; bottom: -60px; right: -80px; animation-delay: -6s; }
+        .bg-orb.orb3 { width: 200px; height: 200px; background: #e8c547; top: 40%; left: 50%; animation-delay: -3s; }
+        @keyframes orbFloat {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(30px, -20px) scale(1.15); }
         }
 
-        body {
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            background-color: var(--bg);
-            color: var(--text);
-            margin: 0;
-            display: flex;
-            height: 100vh;
+        /* Páginas */
+        .page { display: none; flex-direction: column; height: 100%; opacity: 0; transition: opacity 0.25s ease; }
+        .page.active { display: flex; opacity: 1; }
+
+        /* Sequenciador */
+        #seq-grid {
+            display: grid;
+            grid-template-columns: 32px repeat(16, 1fr);
+            gap: 2px;
+            padding: 0 4px;
+        }
+        .note-lbl {
+            display: flex; align-items: center; justify-content: flex-end;
+            padding-right: 4px; font-size: 10px; font-weight: 600;
+            color: #77778a; font-family: 'Space Grotesk', sans-serif;
+        }
+        .seq-cell {
+            aspect-ratio: 1; border-radius: 3px; background: #1a1a20;
+            border: 1px solid #2a2a32; cursor: pointer;
+            transition: all 0.1s ease; min-height: 18px;
+        }
+        .seq-cell.on { background: #FF6B35; border-color: #FF8C5A; box-shadow: 0 0 8px rgba(255,107,53,0.4); }
+        .seq-cell.playing { border-color: #f0ede8 !important; box-shadow: 0 0 6px rgba(240,237,232,0.3); }
+        .seq-col-marker {
+            grid-column: 2; height: 3px; border-radius: 2px;
+            background: transparent; transition: background 0.08s;
+        }
+        .seq-col-marker.active { background: rgba(255,107,53,0.6); }
+
+        /* Piano */
+        .piano-wrap { position: relative; display: flex; height: 90px; user-select: none; touch-action: none; }
+        .w-key {
+            flex: 1; background: linear-gradient(180deg, #f5f5f0, #d8d8d0); border: 1px solid #aaa;
+            border-radius: 0 0 5px 5px; display: flex; align-items: flex-end; justify-content: center;
+            padding-bottom: 6px; font-size: 9px; color: #888; font-weight: 600;
+            transition: background 0.05s;
+        }
+        .w-key.pressed { background: linear-gradient(180deg, #ffd4b8, #ffb088); }
+        .b-key {
+            position: absolute; top: 0; width: 9%; height: 58%; z-index: 2;
+            background: linear-gradient(180deg, #333, #111); border-radius: 0 0 4px 4px;
+            border: 1px solid #000; transition: background 0.05s;
+        }
+        .b-key.pressed { background: linear-gradient(180deg, #FF6B35, #CC5529); }
+
+        /* Editor */
+        .editor-wrap { position: relative; flex: 1; overflow: hidden; }
+        .line-nums {
+            position: absolute; left: 0; top: 0; bottom: 0; width: 36px;
+            background: #0f0f14; border-right: 1px solid #2a2a32;
+            padding: 10px 4px; text-align: right; font-family: 'ui-monospace','Menlo',monospace;
+            font-size: 12px; line-height: 1.6; color: #444; overflow: hidden;
+            user-select: none; z-index: 1;
+        }
+        .editor-backdrop {
+            position: absolute; top: 0; left: 36px; right: 0; bottom: 0;
+            padding: 10px; overflow: auto; pointer-events: none; z-index: 0;
+            font-family: 'ui-monospace','Menlo',monospace; font-size: 12px; line-height: 1.6;
+            white-space: pre-wrap; word-wrap: break-word; tab-size: 2; color: #f0ede8;
+        }
+        .editor-input {
+            position: absolute; top: 0; left: 36px; right: 0; bottom: 0;
+            padding: 10px; background: transparent; color: transparent; caret-color: #FF6B35;
+            font-family: 'ui-monospace','Menlo',monospace; font-size: 12px; line-height: 1.6;
+            white-space: pre-wrap; word-wrap: break-word; tab-size: 2;
+            border: none; outline: none; resize: none; z-index: 1;
+            -webkit-text-fill-color: transparent;
         }
 
-        /* Sidebar: Lista de Notas */
-        .sidebar {
-            width: 300px;
-            background: var(--white);
-            border-right: 1px solid #e2e8f0;
-            display: flex;
-            flex-direction: column;
+        /* Syntax highlight */
+        .hl-kw { color: #FF6B35; font-weight: 600; }
+        .hl-str { color: #4ADE80; }
+        .hl-num { color: #FBBF24; }
+        .hl-cm { color: #555568; font-style: italic; }
+        .hl-tag { color: #FF6B35; }
+        .hl-attr { color: #FBBF24; }
+        .hl-fn { color: #60A5FA; }
+        .hl-dec { color: #C084FC; }
+        .hl-op { color: #888; }
+
+        /* Output */
+        .output-panel {
+            background: #0f0f14; border-top: 1px solid #2a2a32;
+            max-height: 200px; overflow: auto; transition: max-height 0.3s ease;
+        }
+        .output-panel.collapsed { max-height: 0; overflow: hidden; }
+
+        /* Nav */
+        .nav-item {
+            flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+            padding: 8px 0; color: #555; transition: color 0.2s; cursor: pointer; position: relative;
+        }
+        .nav-item.active { color: #FF6B35; }
+        .nav-item.active::before {
+            content: ''; position: absolute; top: -1px; left: 25%; right: 25%;
+            height: 2px; background: #FF6B35; border-radius: 2px;
         }
 
-        .sidebar-header {
-            padding: 20px;
-            border-bottom: 1px solid #e2e8f0;
+        /* Toast */
+        .toast {
+            position: fixed; top: 60px; left: 50%; transform: translateX(-50%) translateY(-20px);
+            background: #1a1a20; border: 1px solid #2a2a32; color: #f0ede8;
+            padding: 10px 20px; border-radius: 10px; font-size: 13px; z-index: 999;
+            opacity: 0; transition: all 0.3s ease; pointer-events: none;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+        }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+        /* Projetos */
+        .proj-card {
+            background: #1a1a20; border: 1px solid #2a2a32; border-radius: 10px;
+            padding: 14px; cursor: pointer; transition: all 0.15s ease;
+        }
+        .proj-card:active { transform: scale(0.98); background: #22222a; }
+
+        /* Pulso do beat */
+        @keyframes beatPulse {
+            0% { box-shadow: 0 0 0 0 rgba(255,107,53,0.3); }
+            100% { box-shadow: 0 0 0 12px rgba(255,107,53,0); }
+        }
+        .beat-pulse { animation: beatPulse 0.15s ease-out; }
+
+        /* Lang tab */
+        .lang-tab {
+            padding: 6px 16px; border-radius: 6px; font-size: 12px; font-weight: 600;
+            cursor: pointer; transition: all 0.15s; color: #77778a; background: transparent;
+        }
+        .lang-tab.active { background: #FF6B35; color: #fff; }
+
+        /* HTML Preview */
+        #html-preview {
+            width: 100%; height: 180px; border: none; background: #fff; border-radius: 6px;
         }
 
-        .btn-new {
-            width: 100%;
-            padding: 10px;
-            background: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: bold;
+        /* Animação de entrada */
+        @keyframes fadeSlideUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
         }
+        .anim-in { animation: fadeSlideUp 0.35s ease-out forwards; }
 
-        #notesList {
-            flex: 1;
-            overflow-y: auto;
-            list-style: none;
-            padding: 0;
-            margin: 0;
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
         }
-
-        .note-item {
-            padding: 15px 20px;
-            border-bottom: 1px solid #f1f5f9;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        .note-item:hover { background: #f1f5f9; }
-        .note-item.active { border-left: 4px solid var(--primary); background: #eff6ff; }
-        .note-item h4 { margin: 0 0 5px 0; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .note-item small { color: #64748b; font-size: 12px; }
-
-        /* Área de Edição */
-        .editor {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            background: var(--white);
-        }
-
-        .editor-header {
-            padding: 10px 20px;
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-            border-bottom: 1px solid #e2e8f0;
-        }
-
-        #noteTitle {
-            padding: 20px;
-            font-size: 24px;
-            font-weight: bold;
-            border: none;
-            outline: none;
-            width: 100%;
-            box-sizing: border-box;
-        }
-
-        #noteContent {
-            flex: 1;
-            padding: 20px;
-            font-size: 16px;
-            border: none;
-            outline: none;
-            resize: none;
-            line-height: 1.6;
-            width: 100%;
-            box-sizing: border-box;
-        }
-
-        .btn-delete { background: var(--danger); color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; }
-        
-        /* Ocultar editor se não houver nota selecionada */
-        .hidden { display: none !important; }
-        .placeholder { flex: 1; display: flex; align-items: center; justify-content: center; color: #94a3b8; }
     </style>
 </head>
 <body>
+    <!-- Orbes de fundo -->
+    <div class="bg-orb orb1"></div>
+    <div class="bg-orb orb2"></div>
+    <div class="bg-orb orb3"></div>
 
-    <div class="sidebar">
-        <div class="sidebar-header">
-            <button class="btn-new" onclick="createNewNote()">+ Nova Nota</button>
-        </div>
-        <ul id="notesList"></ul>
+    <div id="app" class="relative z-10 flex flex-col h-full max-w-lg mx-auto">
+        <!-- Header -->
+        <header class="flex items-center justify-between px-4 py-3 border-b border-bdr bg-bg/80 backdrop-blur-md" style="min-height:52px">
+            <div>
+                <h1 class="font-display font-bold text-base text-fg leading-tight">SynthCode</h1>
+                <p class="text-[10px] text-muted font-medium tracking-wider uppercase" id="header-sub">Sequenciador</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <button id="btn-save" class="w-8 h-8 flex items-center justify-center rounded-lg bg-card border border-bdr text-muted hover:text-accent transition-colors" aria-label="Salvar projeto">
+                    <i class="fa-solid fa-floppy-disk text-xs"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Páginas -->
+        <main class="flex-1 overflow-hidden">
+            <!-- Página Música -->
+            <section id="page-music" class="page active" aria-label="Sequenciador musical">
+                <!-- Visualizador -->
+                <div class="px-3 pt-3">
+                    <canvas id="viz-canvas" class="w-full rounded-lg" height="48" style="background:#0f0f14"></canvas>
+                </div>
+                <!-- Controles -->
+                <div class="flex items-center gap-2 px-3 py-2 flex-wrap">
+                    <button id="btn-play" class="w-9 h-9 flex items-center justify-center rounded-lg bg-accent text-white text-sm" aria-label="Tocar">
+                        <i class="fa-solid fa-play"></i>
+                    </button>
+                    <button id="btn-stop" class="w-9 h-9 flex items-center justify-center rounded-lg bg-card border border-bdr text-muted text-sm" aria-label="Parar">
+                        <i class="fa-solid fa-stop"></i>
+                    </button>
+                    <div class="flex items-center gap-1 bg-card border border-bdr rounded-lg px-2 py-1 ml-1">
+                        <span class="text-[10px] text-muted font-mono">BPM</span>
+                        <input id="bpm-input" type="range" min="60" max="200" value="120" class="w-16 h-1 accent-accent">
+                        <span id="bpm-val" class="text-[10px] text-accent font-mono w-6 text-right">120</span>
+                    </div>
+                    <button id="btn-clear" class="w-9 h-9 flex items-center justify-center rounded-lg bg-card border border-bdr text-muted text-sm" aria-label="Limpar">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                    <div class="flex gap-1 ml-auto">
+                        <button id="exp-lua" class="px-2 py-1 rounded text-[10px] font-bold bg-card border border-bdr text-muted hover:text-accent hover:border-accent transition-colors">LUA</button>
+                        <button id="exp-py" class="px-2 py-1 rounded text-[10px] font-bold bg-card border border-bdr text-muted hover:text-accent hover:border-accent transition-colors">PY</button>
+                    </div>
+                </div>
+                <!-- Grid do sequenciador -->
+                <div class="flex-1 overflow-auto px-1 pb-1">
+                    <div id="seq-grid"></div>
+                </div>
+                <!-- Piano -->
+                <div class="border-t border-bdr">
+                    <div class="piano-wrap" id="piano"></div>
+                </div>
+            </section>
+
+            <!-- Página Código -->
+            <section id="page-code" class="page" aria-label="Editor de código">
+                <!-- Abas de linguagem -->
+                <div class="flex items-center gap-2 px-3 py-2 border-b border-bdr bg-surface/50">
+                    <button class="lang-tab active" data-lang="lua">Lua</button>
+                    <button class="lang-tab" data-lang="html">HTML</button>
+                    <button class="lang-tab" data-lang="python">Python</button>
+                    <div class="ml-auto flex gap-2">
+                        <button id="btn-run" class="px-3 py-1 rounded-lg bg-accent text-white text-xs font-bold flex items-center gap-1">
+                            <i class="fa-solid fa-play text-[9px]"></i> Executar
+                        </button>
+                        <button id="btn-new" class="w-7 h-7 flex items-center justify-center rounded-lg bg-card border border-bdr text-muted text-xs" aria-label="Novo arquivo">
+                            <i class="fa-solid fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+                <!-- Editor -->
+                <div class="editor-wrap bg-[#0f0f14]">
+                    <div class="line-nums" id="line-nums"></div>
+                    <pre class="editor-backdrop" id="editor-backdrop"></pre>
+                    <textarea class="editor-input" id="editor-input" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
+                </div>
+                <!-- Output -->
+                <div class="output-panel" id="output-panel">
+                    <div class="flex items-center justify-between px-3 py-1 border-b border-bdr">
+                        <span class="text-[10px] text-muted font-bold uppercase tracking-wider">Saida</span>
+                        <button id="btn-close-out" class="text-muted text-xs"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div id="output-content" class="p-3 font-mono text-xs leading-relaxed text-fg/80 max-h-[160px] overflow-auto"></div>
+                    <iframe id="html-preview" class="hidden" sandbox="allow-scripts"></iframe>
+                </div>
+            </section>
+
+            <!-- Página Projetos -->
+            <section id="page-projects" class="page" aria-label="Projetos salvos">
+                <div class="px-3 py-3 border-b border-bdr">
+                    <p class="text-xs text-muted">Seus projetos salvos localmente</p>
+                </div>
+                <div id="projects-list" class="flex-1 overflow-auto p-3 space-y-2"></div>
+            </section>
+        </main>
+
+        <!-- Navegação inferior -->
+        <nav class="flex border-t border-bdr bg-bg/90 backdrop-blur-md" style="min-height:56px; padding-bottom: env(safe-area-inset-bottom)" aria-label="Navegação principal">
+            <div class="nav-item active" data-page="music" role="button" tabindex="0" aria-label="Música">
+                <i class="fa-solid fa-music text-sm"></i>
+                <span class="text-[10px] font-semibold">Música</span>
+            </div>
+            <div class="nav-item" data-page="code" role="button" tabindex="0" aria-label="Código">
+                <i class="fa-solid fa-code text-sm"></i>
+                <span class="text-[10px] font-semibold">Código</span>
+            </div>
+            <div class="nav-item" data-page="projects" role="button" tabindex="0" aria-label="Projetos">
+                <i class="fa-solid fa-folder text-sm"></i>
+                <span class="text-[10px] font-semibold">Projetos</span>
+            </div>
+        </nav>
     </div>
 
-    <div id="editorContainer" class="editor hidden">
-        <div class="editor-header">
-            <button class="btn-delete" onclick="deleteNote()">Excluir</button>
-        </div>
-        <input type="text" id="noteTitle" placeholder="Título da nota...">
-        <textarea id="noteContent" placeholder="Comece a escrever..."></textarea>
-    </div>
-
-    <div id="noNoteSelected" class="placeholder">
-        <p>Selecione ou crie uma nota para começar</p>
-    </div>
+    <!-- Toast -->
+    <div id="toast" class="toast"></div>
 
     <script>
-        let notes = JSON.parse(localStorage.getItem('my_notes_app')) || [];
-        let currentNoteId = null;
+    /* ============================================================
+       ESTADO GLOBAL
+    ============================================================ */
+    const NOTES = [
+        { name: 'C5', freq: 523.25 },
+        { name: 'B4', freq: 493.88 },
+        { name: 'A4', freq: 440.00 },
+        { name: 'G4', freq: 392.00 },
+        { name: 'F4', freq: 349.23 },
+        { name: 'E4', freq: 329.63 },
+        { name: 'D4', freq: 293.66 },
+        { name: 'C4', freq: 261.63 },
+    ];
+    const BLACK_KEYS = [
+        { name: 'C#4', freq: 277.18, left: '8.5%' },
+        { name: 'D#4', freq: 311.13, left: '21%' },
+        { name: 'F#4', freq: 369.99, left: '46%' },
+        { name: 'G#4', freq: 415.30, left: '58.5%' },
+        { name: 'A#4', freq: 466.16, left: '71%' },
+    ];
+    const STEPS = 16;
 
-        const notesListEl = document.getElementById('notesList');
-        const editorContainer = document.getElementById('editorContainer');
-        const placeholderEl = document.getElementById('noNoteSelected');
-        const titleInput = document.getElementById('noteTitle');
-        const contentInput = document.getElementById('noteContent');
+    const state = {
+        page: 'music',
+        lang: 'lua',
+        grid: Array.from({ length: 8 }, () => Array(STEPS).fill(false)),
+        playing: false,
+        currentStep: -1,
+        bpm: 120,
+        intervalId: null,
+        codes: {
+            lua: `-- Bem-vindo ao SynthCode Studio\n-- Editor Lua\n\nlocal nome = "Mundo"\nprint("Ola, " .. nome .. "!")\n\nfor i = 1, 5 do\n    print("Iteracao: " .. i)\nend\n\nlocal function saudacao(quem)\n    return "Ola, " .. quem .. "!"\nend\n\nprint(saudacao("Desenvolvedor"))`,
+            html: `<!DOCTYPE html>\n<html>\n<head>\n<style>\n  body {\n    font-family: sans-serif;\n    display: flex;\n    justify-content: center;\n    align-items: center;\n    min-height: 100vh;\n    margin: 0;\n    background: #0a0a0a;\n    color: #fff;\n  }\n  h1 { color: #FF6B35; }\n  button {\n    padding: 12px 28px;\n    background: #FF6B35;\n    border: none;\n    color: #fff;\n    border-radius: 8px;\n    font-size: 16px;\n    cursor: pointer;\n  }\n  button:hover { background: #CC5529; }\n</style>\n</head>\n<body>\n  <div style="text-align:center">\n    <h1>SynthCode Studio</h1>\n    <p>Preview HTML ao vivo!</p>\n    <br>\n    <button onclick="this.textContent='Funcionou!'">Clique aqui</button>\n  </div>\n</body>\n</html>`,
+            python: `# Bem-vindo ao SynthCode Studio\n# Editor Python\n\nnome = "Mundo"\nprint(f"Ola, {nome}!")\n\nfor i in range(1, 6):\n    print(f"Iteracao: {i}")\n\ndef saudacao(quem):\n    return f"Ola, {quem}!"\n\nprint(saudacao("Desenvolvedor"))`,
+        },
+        projects: JSON.parse(localStorage.getItem('synthcode_projects') || '[]'),
+    };
 
-        function saveToStorage() {
-            localStorage.setItem('my_notes_app', JSON.stringify(notes));
-            renderNotesList();
+    /* ============================================================
+       MOTOR DE ÁUDIO
+    ============================================================ */
+    let audioCtx = null, analyser = null, masterGain = null;
+
+    function initAudio() {
+        if (audioCtx) return;
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 128;
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = 0.5;
+        masterGain.connect(analyser);
+        analyser.connect(audioCtx.destination);
+        drawVisualizer();
+    }
+
+    function playNote(freq, dur = 0.15) {
+        if (!audioCtx) return;
+        const now = audioCtx.currentTime;
+        // Oscilador principal (triângulo para som mais musical)
+        const osc1 = audioCtx.createOscillator();
+        osc1.type = 'triangle';
+        osc1.frequency.value = freq;
+        // Segundo oscilador harmônico (sine, uma oitava acima, volume baixo)
+        const osc2 = audioCtx.createOscillator();
+        osc2.type = 'sine';
+        osc2.frequency.value = freq * 2;
+        const g2 = audioCtx.createGain();
+        g2.gain.value = 0.08;
+        // Envelope
+        const env = audioCtx.createGain();
+        env.gain.setValueAtTime(0, now);
+        env.gain.linearRampToValueAtTime(0.35, now + 0.008);
+        env.gain.exponentialRampToValueAtTime(0.001, now + dur);
+        osc1.connect(env);
+        osc2.connect(g2);
+        g2.connect(env);
+        env.connect(masterGain);
+        osc1.start(now);
+        osc1.stop(now + dur);
+        osc2.start(now);
+        osc2.stop(now + dur);
+    }
+
+    /* ============================================================
+       VISUALIZADOR DE ÁUDIO
+    ============================================================ */
+    const vizCanvas = document.getElementById('viz-canvas');
+    const vizCtx = vizCanvas.getContext('2d');
+
+    function resizeViz() {
+        vizCanvas.width = vizCanvas.offsetWidth * window.devicePixelRatio;
+        vizCanvas.height = 48 * window.devicePixelRatio;
+        vizCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    }
+    resizeViz();
+    window.addEventListener('resize', resizeViz);
+
+    function drawVisualizer() {
+        requestAnimationFrame(drawVisualizer);
+        const w = vizCanvas.offsetWidth, h = 48;
+        vizCtx.clearRect(0, 0, w, h);
+        if (!analyser) return;
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(data);
+        const bars = 40;
+        const bw = w / bars;
+        const step = Math.max(1, Math.floor(data.length / bars));
+        for (let i = 0; i < bars; i++) {
+            const v = data[i * step] / 255;
+            const bh = Math.max(1, v * h * 0.85);
+            const alpha = 0.25 + v * 0.75;
+            vizCtx.fillStyle = `rgba(255,107,53,${alpha.toFixed(2)})`;
+            vizCtx.beginPath();
+            vizCtx.roundRect(i * bw + 1, h - bh, bw - 2, bh, 2);
+            vizCtx.fill();
         }
+    }
 
-        function createNewNote() {
-            const newNote = {
-                id: Date.now(),
-                title: "Nova Nota",
-                content: "",
-                date: new Date().toLocaleDateString('pt-BR')
-            };
-            notes.unshift(newNote);
-            saveToStorage();
-            selectNote(newNote.id);
-        }
+    /* ============================================================
+       SEQUENCIADOR
+    ============================================================ */
+    const seqGrid = document.getElementById('seq-grid');
 
-        function renderNotesList() {
-            notesListEl.innerHTML = '';
-            notes.forEach(note => {
-                const li = document.createElement('li');
-                li.className = `note-item ${note.id === currentNoteId ? 'active' : ''}`;
-                li.innerHTML = `
-                    <h4>${note.title || 'Sem título'}</h4>
-                    <small>${note.date}</small>
-                `;
-                li.onclick = () => selectNote(note.id);
-                notesListEl.appendChild(li);
-            });
-        }
-
-        function selectNote(id) {
-            currentNoteId = id;
-            const note = notes.find(n => n.id === id);
-            
-            if (note) {
-                titleInput.value = note.title;
-                contentInput.value = note.content;
-                editorContainer.classList.remove('hidden');
-                placeholderEl.classList.add('hidden');
+    function buildSequencer() {
+        seqGrid.innerHTML = '';
+        NOTES.forEach((note, ri) => {
+            const lbl = document.createElement('div');
+            lbl.className = 'note-lbl';
+            lbl.textContent = note.name;
+            seqGrid.appendChild(lbl);
+            for (let ci = 0; ci < STEPS; ci++) {
+                const cell = document.createElement('div');
+                cell.className = 'seq-cell' + (state.grid[ri][ci] ? ' on' : '');
+                cell.dataset.r = ri;
+                cell.dataset.c = ci;
+                cell.addEventListener('pointerdown', (e) => {
+                    e.preventDefault();
+                    initAudio();
+                    toggleCell(ri, ci, cell);
+                });
+                seqGrid.appendChild(cell);
             }
-            renderNotesList();
-        }
-
-        function deleteNote() {
-            if (confirm("Deseja mesmo excluir esta nota?")) {
-                notes = notes.filter(n => n.id !== currentNoteId);
-                currentNoteId = null;
-                editorContainer.classList.add('hidden');
-                placeholderEl.classList.remove('hidden');
-                saveToStorage();
-            }
-        }
-
-        // Eventos de digitação para salvar automaticamente
-        [titleInput, contentInput].forEach(el => {
-            el.addEventListener('input', () => {
-                const note = notes.find(n => n.id === currentNoteId);
-                if (note) {
-                    note.title = titleInput.value;
-                    note.content = contentInput.value;
-                    saveToStorage();
-                }
-            });
         });
+    }
 
-        // Inicialização
-        renderNotesList();
+    function toggleCell(r, c, el) {
+        state.grid[r][c] = !state.grid[r][c];
+        el.classList.toggle('on', state.grid[r][c]);
+        if (state.grid[r][c]) playNote(NOTES[r].freq, 0.1);
+    }
+
+    function clearGrid() {
+        state.grid = Array.from({ length: 8 }, () => Array(STEPS).fill(false));
+        document.querySelectorAll('.seq-cell').forEach(c => c.classList.remove('on'));
+    }
+
+    function stepSequencer() {
+        state.currentStep = (state.currentStep + 1) % STEPS;
+        // Atualizar visual
+        document.querySelectorAll('.seq-cell').forEach(c => c.classList.remove('playing'));
+        for (let r = 0; r < 8; r++) {
+            const cell = seqGrid.querySelector(`.seq-cell[data-r="${r}"][data-c="${state.currentStep}"]`);
+            if (cell) {
+                cell.classList.add('playing');
+                if (state.grid[r][state.currentStep]) {
+                    playNote(NOTES[r].freq, 0.12);
+                    cell.classList.add('beat-pulse');
+                    setTimeout(() => cell.classList.remove('beat-pulse'), 150);
+                }
+            }
+        }
+    }
+
+    function startPlay() {
+        if (state.playing) return;
+        initAudio();
+        state.playing = true;
+        state.currentStep = -1;
+        const ms = (60 / state.bpm / 4) * 1000;
+        state.intervalId = setInterval(stepSequencer, ms);
+        document.getElementById('btn-play').innerHTML = '<i class="fa-solid fa-pause"></i>';
+    }
+
+    function stopPlay() {
+        state.playing = false;
+        clearInterval(state.intervalId);
+        state.currentStep = -1;
+        document.querySelectorAll('.seq-cell').forEach(c => c.classList.remove('playing'));
+        document.getElementById('btn-play').innerHTML = '<i class="fa-solid fa-play"></i>';
+    }
+
+    document.getElementById('btn-play').addEventListener('click', () => state.playing ? stopPlay() : startPlay());
+    document.getElementById('btn-stop').addEventListener('click', stopPlay);
+    document.getElementById('btn-clear').addEventListener('click', () => { clearGrid(); toast('Sequenciador limpo'); });
+
+    const bpmInput = document.getElementById('bpm-input');
+    const bpmVal = document.getElementById('bpm-val');
+    bpmInput.addEventListener('input', () => {
+        state.bpm = parseInt(bpmInput.value);
+        bpmVal.textContent = state.bpm;
+        if (state.playing) {
+            clearInterval(state.intervalId);
+            const ms = (60 / state.bpm / 4) * 1000;
+            state.intervalId = setInterval(stepSequencer, ms);
+        }
+    });
+
+    /* ============================================================
+       PIANO
+    ============================================================ */
+    const pianoEl = document.getElementById('piano');
+    const activePianoKeys = {};
+    const pianoOscillators = {};
+
+    function buildPiano() {
+        const whites = ['C4','D4','E4','F4','G4','A4','B4','C5'];
+        const freqs = { C4:261.63, D4:293.66, E4:329.63, F4:349.23, G4:392.00, A4:440.00, B4:493.88, C5:523.25 };
+        whites.forEach(n => {
+            const k = document.createElement('div');
+            k.className = 'w-key';
+            k.dataset.freq = freqs[n];
+            k.innerHTML = `<span>${n.replace('4','')}</span>`;
+            pianoEl.appendChild(k);
+        });
+        BLACK_KEYS.forEach(bk => {
+            const k = document.createElement('div');
+            k.className = 'b-key';
+            k.dataset.freq = bk.freq;
+            k.style.left = bk.left;
+            pianoEl.appendChild(k);
+        });
+    }
+
+    function pianoNoteOn(el) {
+        if (el.classList.contains('pressed')) return;
+        initAudio();
+        el.classList.add('pressed');
+        const freq = parseFloat(el.dataset.freq);
+        const osc = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = freq;
+        g.gain.setValueAtTime(0, audioCtx.currentTime);
+        g.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + 0.02);
+        osc.connect(g);
+        g.connect(masterGain);
+        osc.start();
+        pianoOscillators[el.dataset.freq] = { osc, g };
+    }
+
+    function pianoNoteOff(el) {
+        el.classList.remove('pressed');
+        const entry = pianoOscillators[el.dataset.freq];
+        if (entry) {
+            const now = audioCtx.currentTime;
+            entry.g.gain.cancelScheduledValues(now);
+            entry.g.gain.setValueAtTime(entry.g.gain.value, now);
+            entry.g.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+            entry.osc.stop(now + 0.12);
+            delete pianoOscillators[el.dataset.freq];
+        }
+    }
+
+    pianoEl.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        pianoNoteOn(e.target);
+    });
+    pianoEl.addEventListener('pointerup', (e) => {
+        pianoNoteOff(e.target);
+    });
+    pianoEl.addEventListener('pointerleave', (e) => {
+        pianoNoteOff(e.target);
+    });
+    pianoEl.addEventListener('pointercancel', (e) => {
+        pianoNoteOff(e.target);
+    });
+
+    /* ============================================================
+       EDITOR DE CÓDIGO
+    ============================================================ */
+    const editorInput = document.getElementById('editor-input');
+    const editorBackdrop = document.getElementById('editor-backdrop');
+    const lineNums = document.getElementById('line-nums');
+
+    function updateEditor() {
+        state.codes[state.lang] = editorInput.value;
+        editorBackdrop.innerHTML = highlight(state.lang, editorInput.value);
+        updateLineNumbers();
+    }
+
+    function updateLineNumbers() {
+        const lines = editorInput.value.split('\n').length;
+        lineNums.innerHTML = Array.from({ length: lines }, (_, i) => i + 1).join('\n');
+    }
+
+    function syncScroll() {
+        editorBackdrop.scrollTop = editorInput.scrollTop;
+        editorBackdrop.scrollLeft = editorInput.scrollLeft;
+        lineNums.scrollTop = editorInput.scrollTop;
+    }
+
+    editorInput.addEventListener('input', updateEditor);
+    editorInput.addEventListener('scroll', syncScroll);
+    editorInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            const s = editorInput.selectionStart, end = editorInput.selectionEnd;
+            editorInput.value = editorInput.value.substring(0, s) + '  ' + editorInput.value.substring(end);
+            editorInput.selectionStart = editorInput.selectionEnd = s + 2;
+            updateEditor();
+        }
+    });
+
+    function loadCode(lang) {
+        state.lang = lang;
+        editorInput.value = state.codes[lang];
+        updateEditor();
+        document.querySelectorAll('.lang-tab').forEach(t => t.classList.toggle('active', t.dataset.lang === lang));
+    }
+
+    document.querySelectorAll('.lang-tab').forEach(tab => {
+        tab.addEventListener('click', () => loadCode(tab.dataset.lang));
+    });
+
+    /* ============================================================
+       SYNTAX HIGHLIGHTING
+    ============================================================ */
+    function esc(s) {
+        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    function highlight(lang, code) {
+        let html = esc(code);
+        const ph = [];
+        function stash(cls, regex) {
+            html = html.replace(regex, (m) => { ph.push(`<span class="${cls}">${m}</span>`); return `\x00${ph.length-1}\x00`; });
+        }
+        if (lang === 'lua') {
+            stash('hl-cm', /--\[=*\[.*?\]=*\]|--.*$/gm);
+            stash('hl-str', /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g);
+            stash('hl-num', /\b\d+\.?\d*\b/g);
+            html = html.replace(/\b(function|end|if|then|else|elseif|for|while|do|repeat|until|return|local|true|false|nil|and|or|not|in|break)\b/g, '<span class="hl-kw">$1</span>');
+            html = html.replace(/\b([a-zA-Z_]\w*)\s*(?=\()/g, '<span class="hl-fn">$1</span>');
+        } else if (lang === 'python') {
+            stash('hl-cm', /#.*$/gm);
+            stash('hl-str', /f?"(?:[^"\\]|\\.)*"|f?'(?:[^'\\]|\\.)*'|"""[\s\S]*?"""|'''[\s\S]*?'''/g);
+            stash('hl-dec', /@\w+/g);
+            stash('hl-num', /\b\d+\.?\d*\b/g);
+            html = html.replace(/\b(def|class|if|elif|else|for|while|return|import|from|as|try|except|finally|with|yield|lambda|pass|break|continue|and|or|not|in|is|True|False|None|raise|del|global|nonlocal|assert)\b/g, '<span class="hl-kw">$1</span>');
+            html = html.replace(/\b([a-zA-Z_]\w*)\s*(?=\()/g, '<span class="hl-fn">$1</span>');
+        } else if (lang === 'html') {
+            stash('hl-cm', /<!--[\s\S]*?-->/g);
+            stash('hl-str', /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g);
+            html = html.replace(/(&lt;\/?)([\w-]+)/g, '$1<span class="hl-tag">$2</span>');
+            html = html.replace(/\b([\w-]+)(?==)/g, '<span class="hl-attr">$1</span>');
+            stash('hl-num', /\b\d+\.?\d*\b/g);
+        }
+        html = html.replace(/\x00(\d+)\x00/g, (_, i) => ph[parseInt(i)]);
+        return html;
+    }
+
+    /* ============================================================
+       INTERPRETADORES
+    ============================================================ */
+    function evalExpr(expr, vars) {
+        expr = expr.trim();
+        // String literal
+        if ((expr.startsWith('"') && expr.endsWith('"')) || (expr.startsWith("'") && expr.endsWith("'"))) {
+            return expr.slice(1, -1).replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+        }
+        // Number
+        if (/^-?\d+\.?\d*$/.test(expr)) return parseFloat(expr);
+        // Boolean/null
+        if (expr === 'true' || expr === 'True') return true;
+        if (expr === 'false' || expr === 'False') return false;
+        if (expr === 'nil' || expr === 'None') return null;
+        // Variável
+        if (/^[a-zA-Z_]\w*$/.test(expr) && expr in vars) return vars[expr];
+        // Concatenação Lua ..
+        if (expr.includes('..')) {
+            const parts = expr.split('..').map(p => evalExpr(p.trim(), vars));
+            return parts.join('');
+        }
+        // f-string Python simples
+        const fMatch = expr.match(/^f"(.*)"$/);
+        if (fMatch) {
+            return fMatch[1].replace(/\{([^}]+)\}/g, (_, e) => evalExpr(e, vars));
+        }
+        // Aritmética simples
+        try {
+            let safe = expr.replace(/\b(and|or|not)\b/g, (m) => m === 'and' ? '&&' : m === 'or' ? '||' : '!');
+            return new Function('v', `with(v){return (${safe})}`)(vars);
+        } catch { return expr; }
+    }
+
+    function runLua(code) {
+        const out = [];
+        const vars = {};
+        const lines = code.split('\n');
+        const forStack = [];
+        let i = 0;
+        while (i < lines.length) {
+            let ln = lines[i].trim();
+            if (!ln || ln.startsWith('--')) { i++; continue; }
+            // print(...)
+            const pm = ln.match(/^print\((.+)\)$/);
+            if (pm) { out.push(String(evalExpr(pm[1], vars))); i++; continue; }
+            // local x = ...
+            const lm = ln.match(/^local\s+(\w+)\s*=\s*(.+)$/);
+            if (lm) { vars[lm[1]] = evalExpr(lm[2], vars); i++; continue; }
+            // x = ...
+            const am = ln.match(/^(\w+)\s*=\s*(.+)$/);
+            if (am) { vars[am[1]] = evalExpr(am[2], vars); i++; continue; }
+            // for i = a, b do
+            const fm = ln.match(/^for\s+(\w+)\s*=\s*(.+),\s*(.+)\s+do$/);
+            if (fm) {
+                const vName = fm[1], from = Math.floor(evalExpr(fm[2], vars)), to = Math.floor(evalExpr(fm[3], vars));
+                // Encontrar o end correspondente
+                let depth = 1, endIdx = i + 1;
+                while (endIdx < lines.length && depth > 0) {
+                    const sl = lines[endIdx].trim();
+                    if (/\b(for|while|if)\b.*\bdo\b|function\s/.test(sl)) depth++;
+                    if (sl === 'end') depth--;
+                    if (depth > 0) endIdx++;
+                }
+                const body = lines.slice(i + 1, endIdx);
+                for (let v = from; v <= to; v++) {
+                    vars[vName] = v;
+                    const subOut = runLua(body.join('\n'));
+                    out.push(...subOut);
+                }
+                i = endIdx + 1; continue;
+            }
+            i++;
+        }
+        return out;
+    }
+
+    function runPython(code) {
+        const out = [];
+        const vars = {};
+        const lines = code.split('\n');
+        let i = 0;
+        while (i < lines.length) {
+            let ln = lines[i].trim();
+            if (!ln || ln.startsWith('#')) { i++; continue; }
+            // print(...)
+            const pm = ln.match(/^print\((.+)\)$/);
+            if (pm) { out.push(String(evalExpr(pm[1], vars))); i++; continue; }
+            // x = ...
+            const am = ln.match(/^(\w+)\s*=\s*(.+)$/);
+            if (am) { vars[am[1]] = evalExpr(am[2], vars); i++; continue; }
+            // for x in range(a, b):
+            const fm = ln.match(/^for\s+(\w+)\s+in\s+range\((.+)\)\s*:$/);
+            if (fm) {
+                const vName = fm[1];
+                const args = fm[2].split(',').map(a => Math.floor(evalExpr(a.trim(), vars)));
+                let from = 0, to = 0;
+                if (args.length === 1) { to = args[0] - 1; }
+                else { from = args[0]; to = args[1] - 1; }
+                let endIdx = i + 1;
+                while (endIdx < lines.length && lines[endIdx].match(/^\s/)) endIdx++;
+                const body = lines.slice(i + 1, endIdx).map(l => l.replace(/^\s{4}/, ''));
+                for (let v = from; v <= to; v++) {
+                    vars[vName] = v;
+                    const subOut = runPython(body.join('\n'));
+                    out.push(...subOut);
+                }
+                i = endIdx; continue;
+            }
+            // def nome(args):
+            const dfm = ln.match(/^def\s+(\w+)\(([^)]*)\)\s*:$/);
+            if (dfm) {
+                const fnName = dfm[1], params = dfm[2].split(',').map(s => s.trim()).filter(Boolean);
+                let endIdx = i + 1;
+                while (endIdx < lines.length && lines[endIdx].match(/^\s/)) endIdx++;
+                const body = lines.slice(i + 1, endIdx).map(l => l.replace(/^\s{4}/, ''));
+                vars[fnName] = (...args) => {
+                    const localVars = { ...vars };
+                    params.forEach((p, pi) => localVars[p] = args[pi] !== undefined ? args[pi] : null);
+                    const ret = runPython(body.join('\n'));
+                    // Procurar return no corpo
+                    for (const bl of body) {
+                        const rm = bl.trim().match(/^return\s+(.+)$/);
+                        if (rm) return evalExpr(rm[1], localVars);
+                    }
+                    return ret.join('\n');
+                };
+                i = endIdx; continue;
+            }
+            // return
+            const rm = ln.match(/^return\s+(.+)$/);
+            if (rm) { out.push(String(evalExpr(rm[1], vars))); i++; continue; }
+            i++;
+        }
+        return out;
+    }
+
+    function runCode() {
+        initAudio();
+        const panel = document.getElementById('output-panel');
+        const content = document.getElementById('output-content');
+        const preview = document.getElementById('html-preview');
+        panel.classList.remove('collapsed');
+
+        if (state.lang === 'html') {
+            content.classList.add('hidden');
+            preview.classList.remove('hidden');
+            preview.srcdoc = editorInput.value;
+        } else {
+            content.classList.remove('hidden');
+            preview.classList.add('hidden');
+            const code = editorInput.value;
+            try {
+                const result = state.lang === 'lua' ? runLua(code) : runPython(code);
+                content.innerHTML = result.map(l => `<div>${esc(l)}</div>`).join('') || '<span class="text-muted">(sem saída)</span>';
+            } catch (e) {
+                content.innerHTML = `<div class="text-red-400">Erro: ${esc(e.message)}</div>`;
+            }
+        }
+        toast('Código executado');
+    }
+
+    document.getElementById('btn-run').addEventListener('click', runCode);
+    document.getElementById('btn-close-out').addEventListener('click', () => {
+        document.getElementById('output-panel').classList.add('collapsed');
+    });
+
+    /* ============================================================
+       EXPORTAR PADRÃO COMO CÓDIGO
+    ============================================================ */
+    function exportPattern(lang) {
+        const noteNames = NOTES.map(n => n.name);
+        let code = '';
+        if (lang === 'lua') {
+            code = '-- Padrão exportado do SynthCode Studio\nlocal pattern = {\n';
+            NOTES.forEach((n, ri) => {
+                const steps = state.grid[ri].map(v => v ? 1 : 0);
+                code += `  { note = "${n.name}", freq = ${n.freq.toFixed(2)}, steps = {${steps.join(',')}} },\n`;
+            });
+            code += '}\n\n-- Tocar padrão\nfor step = 1, 16 do\n  for i, row in ipairs(pattern) do\n    if row.steps[step] == 1 then\n      print("Step " .. step .. ": " .. row.note)\n    end\n  end\nend';
+        } else {
+            code = '# Padrão exportado do SynthCode Studio\npattern = [\n';
+            NOTES.forEach((n, ri) => {
+                const steps = state.grid[ri].map(v => v ? 1 : 0);
+                code += `    {"note": "${n.name}", "freq": ${n.freq.toFixed(2)}, "steps": [${steps.join(',')}]},\n`;
+            });
+            code += ']\n\n# Tocar padrão\nfor step in range(16):\n    for row in pattern:\n        if row["steps"][step] == 1:\n            print(f\'Step {step+1}: {row["note"]}\')';
+        }
+        state.codes[lang] = code;
+        switchPage('code');
+        loadCode(lang);
+        toast(`Padrão exportado como ${lang.toUpperCase()}`);
+    }
+
+    document.getElementById('exp-lua').addEventListener('click', () => exportPattern('lua'));
+    document.getElementById('exp-py').addEventListener('click', () => exportPattern('python'));
+
+    /* ============================================================
+       PROJETOS (localStorage)
+    ============================================================ */
+    function saveProject() {
+        const name = state.page === 'music' ? 'Sequencia ' + new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' }) : `Codigo ${state.lang.toUpperCase()} - ${new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })}`;
+        const proj = {
+            id: Date.now(),
+            name,
+            type: state.page,
+            language: state.lang,
+            code: state.codes[state.lang],
+            grid: state.page === 'music' ? state.grid.map(r => [...r]) : null,
+            bpm: state.bpm,
+            date: new Date().toISOString(),
+        };
+        state.projects.unshift(proj);
+        if (state.projects.length > 50) state.projects.pop();
+        localStorage.setItem('synthcode_projects', JSON.stringify(state.projects));
+        toast('Projeto salvo');
+        if (state.page === 'projects') renderProjects();
+    }
+
+    function deleteProject(id) {
+        state.projects = state.projects.filter(p => p.id !== id);
+        localStorage.setItem('synthcode_projects', JSON.stringify(state.projects));
+        renderProjects();
+        toast('Projeto excluido');
+    }
+
+    function loadProject(id) {
+        const proj = state.projects.find(p => p.id === id);
+        if (!proj) return;
+        if (proj.type === 'code') {
+            state.codes[proj.language] = proj.code;
+            switchPage('code');
+            loadCode(proj.language);
+        } else {
+            if (proj.grid) state.grid = proj.grid;
+            if (proj.bpm) { state.bpm = proj.bpm; bpmInput.value = state.bpm; bpmVal.textContent = state.bpm; }
+            switchPage('music');
+            buildSequencer();
+        }
+        toast('Projeto carregado');
+    }
+
+    function renderProjects() {
+        const list = document.getElementById('projects-list');
+        if (state.projects.length === 0) {
+            list.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-center">
+                <i class="fa-solid fa-folder-open text-3xl text-bdr mb-3"></i>
+                <p class="text-muted text-sm">Nenhum projeto salvo</p>
+                <p class="text-muted/60 text-xs mt-1">Use o botao de salvar para guardar seus trabalhos</p>
+            </div>`;
+            return;
+        }
+        list.innerHTML = state.projects.map(p => {
+            const preview = p.code ? p.code.split('\n').slice(0, 2).join(' | ') : (p.grid ? `Sequencia ${p.bpm} BPM` : '');
+            const icon = p.type === 'music' ? 'fa-music' : 'fa-code';
+            const badge = p.language ? p.language.toUpperCase() : 'SEQ';
+            const date = new Date(p.date).toLocaleDateString('pt-BR', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+            return `<div class="proj-card anim-in" onclick="loadProject(${p.id})">
+                <div class="flex items-start justify-between mb-2">
+                    <div class="flex items-center gap-2">
+                        <div class="w-7 h-7 rounded-md bg-accent/15 flex items-center justify-center"><i class="fa-solid ${icon} text-accent text-[10px]"></i></div>
+                        <div>
+                            <p class="text-sm font-semibold text-fg leading-tight">${esc(p.name)}</p>
+                            <p class="text-[10px] text-muted">${date}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-bdr text-muted">${badge}</span>
+                        <button onclick="event.stopPropagation();deleteProject(${p.id})" class="w-6 h-6 flex items-center justify-center rounded text-muted hover:text-red-400 transition-colors" aria-label="Excluir">
+                            <i class="fa-solid fa-trash-can text-[10px]"></i>
+                        </button>
+                    </div>
+                </div>
+                <p class="text-[11px] text-muted/70 font-mono truncate">${esc(preview)}</p>
+            </div>`;
+        }).join('');
+    }
+
+    document.getElementById('btn-save').addEventListener('click', saveProject);
+    document.getElementById('btn-new').addEventListener('click', () => {
+        const templates = {
+            lua: '-- Novo script Lua\n\n',
+            html: '<!DOCTYPE html>\n<html>\n<head>\n  <style>\n    body { margin: 0; font-family: sans-serif; }\n  </style>\n</head>\n<body>\n  \n</body>\n</html>',
+            python: '# Novo script Python\n\n',
+        };
+        state.codes[state.lang] = templates[state.lang];
+        editorInput.value = state.codes[state.lang];
+        updateEditor();
+        toast('Novo arquivo criado');
+    });
+
+    /* ============================================================
+       NAVEGAÇÃO
+    ============================================================ */
+    const subtitles = { music: 'Sequenciador', code: `Editor ${''}`, projects: 'Projetos' };
+
+    function switchPage(page) {
+        state.page = page;
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById(`page-${page}`).classList.add('active');
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === page));
+        const sub = document.getElementById('header-sub');
+        if (page === 'code') sub.textContent = `Editor ${state.lang.toUpperCase()}`;
+        else sub.textContent = subtitles[page];
+        if (page === 'projects') renderProjects();
+        if (page === 'code') { editorInput.value = state.codes[state.lang]; updateEditor(); }
+    }
+
+    document.querySelectorAll('.nav-item').forEach(n => {
+        n.addEventListener('click', () => switchPage(n.dataset.page));
+        n.addEventListener('keydown', (e) => { if (e.key === 'Enter') switchPage(n.dataset.page); });
+    });
+
+    /* ============================================================
+       TOAST
+    ============================================================ */
+    let toastTimer = null;
+    function toast(msg) {
+        const el = document.getElementById('toast');
+        el.textContent = msg;
+        el.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.classList.remove('show'), 2000);
+    }
+
+    /* ============================================================
+       INICIALIZAÇÃO
+    ============================================================ */
+    buildSequencer();
+    buildPiano();
+    loadCode('lua');
+    document.getElementById('output-panel').classList.add('collapsed');
+
+    // Desabilitar zoom e pull-to-refresh no mobile
+    document.addEventListener('touchmove', (e) => {
+        if (e.target.closest('.editor-wrap') || e.target.closest('#seq-grid') || e.target.closest('#projects-list')) return;
+        // Permitir scroll natural em containers scrolláveis
+    }, { passive: true });
+
+    // Prevenir double-tap zoom
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', (e) => {
+        const now = Date.now();
+        if (now - lastTouchEnd <= 300) e.preventDefault();
+        lastTouchEnd = now;
+    }, false);
+
+    // Atalho de teclado: Ctrl+Enter para executar
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && state.page === 'code') {
+            e.preventDefault();
+            runCode();
+        }
+    });
     </script>
 </body>
 </html>
